@@ -152,10 +152,12 @@ def test_save_and_reload(m, tmpdir):
     
     #save the prediction dataframe after training and compare with prediction after reload checkpoint 
     pred_after_train = m.predict_image(path = img_path)
-    m.save_model("{}/checkpoint.pl".format(tmpdir))
+    test_dir = os.path.abspath(os.path.dirname(__file__))
+    model_path =  os.path.join(test_dir, "checkpoint.pl")
+    m.save_model(model)
     
     #reload the checkpoint to model object
-    after = main.deepforest.load_from_checkpoint("{}/checkpoint.pl".format(tmpdir))
+    after = main.deepforest.load_from_checkpoint(model_path)
     pred_after_reload = after.predict_image(path = img_path)
 
     assert not pred_after_train.empty
