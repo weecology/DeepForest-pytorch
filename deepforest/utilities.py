@@ -13,8 +13,45 @@ import xmltodict
 import yaml
 from tqdm import tqdm
 
+from collections import OrderedDict
+from six import raise_from
+
+
 from deepforest import _ROOT
 
+
+def _parse(value, function, fmt):
+    """
+    Parse a string into a value, and format a nice ValueError if it fails.
+    Returns `function(value)`.
+    Any `ValueError` raised is catched and a new `ValueError` is raised
+    with message `fmt.format(e)`, where `e` is the caught `ValueError`.
+    """
+    try:
+        return function(value)
+    except ValueError as e:
+        raise_from(ValueError(fmt.format(e)), None)
+
+
+def _read_classes(csvfile):
+
+    result = OrderedDict()
+    for line, row in enumerate(csvfile):
+        line += 1
+
+        try:
+            class_name, class_id = row
+        except ValueError:
+            raise_from(ValueError(
+                'line {}: format should be \'class_name,class_id\''.format(line)), None)
+        class_id = _parse(
+            class_id, int, 'line {}: malformed class ID: {{}}'.format(line))
+
+        if class_name in result:
+            raise ValueError(
+                'line {}: duplicate class name: \'{}\''.format(line, class_name))
+        result[class_name] = class_id
+    return result
 
 def read_config(config_path):
     """Read config yaml file"""
@@ -47,6 +84,27 @@ class DownloadProgressBar(tqdm):
             self.total = tsize
         self.update(b * bsize - self.n)
 
+
+def _read_classes(csv_reader):
+    """ Parse the classes file given by csv_reader.
+    """
+    result = OrderedDict()
+    for line, row in enumerate(csv_reader):
+        line += 1
+
+        try:
+            class_name, class_id = row
+        except ValueError:
+            raise_from(ValueError(
+                'line {}: format should be \'class_name,class_id\''.format(line)), None)
+        class_id = _parse(
+            class_id, int, 'line {}: malformed class ID: {{}}'.format(line))
+
+        if class_name in result:
+            raise ValueError(
+                'line {}: duplicate class name: \'{}\''.format(line, class_name))
+        result[class_name] = class_id
+    return result
 
 def use_release(save_dir=os.path.join(_ROOT, "data/"), prebuilt_model="NEON"):
     """

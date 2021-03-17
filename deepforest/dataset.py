@@ -14,11 +14,12 @@ https://colab.research.google.com/github/benihime91/pytorch_retinanet/blob/maste
 """
 import glob
 import os
+import csv
 import pandas as pd
 from skimage import io
 from torch.utils.data import Dataset
 from deepforest import transforms as T
-
+from deepforest import utilities
 
 def get_transform(augment):
     transforms = []
@@ -28,7 +29,7 @@ def get_transform(augment):
     return T.Compose(transforms)
 
 
-idx_to_label = {"Tree": 0}
+# idx_to_label = {"Tree": 0}
 
 
 class TreeDataset(Dataset):
@@ -45,10 +46,25 @@ class TreeDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transforms
         self.image_names = self.annotations.image_path.unique()
+        self.read_classes()
+        self.csvfile = csv_file
 
     def __len__(self):
         return len(self.image_names)
 
+    def read_classes(self):
+        """Read class file in case of multi-class training.
+        If no file has been created, DeepForest assume there is 1 class,
+        Tree
+        """        
+        try:
+            with open(self.csvfile, 'r') as file:
+                self.classes = _read_classes(csv.reader(file, delimiter=','))
+            for key, value in self.classes.items():
+                self.labels[value] = key
+        except:
+            self.labels[0] = "Tree"
+    
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, self.image_names[idx])
         image = io.imread(img_name)
@@ -61,9 +77,9 @@ class TreeDataset(Dataset):
         targets["boxes"] = image_annotations[["xmin", "ymin", "xmax",
                                               "ymax"]].values.astype(float)
 
-        # Labels need to be encoded? 0 or 1 indexed?, ALl tree for the moment.
+        # Labels need to be encoded? 0 or 1 indexed?, ALL tree for the moment.
         targets["labels"] = image_annotations.label.apply(
-            lambda x: idx_to_label[x]).values.astype(int)
+            lambda x: self.labels[x]).values.astype(int)
 
         if self.transform:
             image, targets = self.transform(image, targets)
