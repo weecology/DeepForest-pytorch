@@ -42,14 +42,15 @@ def _read_classes(csvfile):
         try:
             class_name, class_id = row
         except ValueError:
-            raise_from(ValueError(
-                'line {}: format should be \'class_name,class_id\''.format(line)), None)
-        class_id = _parse(
-            class_id, int, 'line {}: malformed class ID: {{}}'.format(line))
+             raise_from(
+                ValueError(
+                    'line {}: format should be \'class_name,class_id\''.format(line)),
+                  None)
+         class_id = _parse(class_id, int, 'line {}: malformed class ID: {{}}'.format(line))
 
         if class_name in result:
-            raise ValueError(
-                'line {}: duplicate class name: \'{}\''.format(line, class_name))
++            raise ValueError('line {}: duplicate class name: \'{}\''.format(
++                line, class_name))
         result[class_name] = class_id
     return result
 
@@ -95,14 +96,15 @@ def _read_classes(csv_reader):
         try:
             class_name, class_id = row
         except ValueError:
-            raise_from(ValueError(
-                'line {}: format should be \'class_name,class_id\''.format(line)), None)
-        class_id = _parse(
-            class_id, int, 'line {}: malformed class ID: {{}}'.format(line))
+            raise_from(
+                 ValueError(
+                     'line {}: format should be \'class_name,class_id\''.format(line)),
+                 None)
+         class_id = _parse(class_id, int, 'line {}: malformed class ID: {{}}'.format(line))
 
         if class_name in result:
-            raise ValueError(
-                'line {}: duplicate class name: \'{}\''.format(line, class_name))
+            raise ValueError('line {}: duplicate class name: \'{}\''.format(
+                line, class_name))
         result[class_name] = class_id
     return result
 

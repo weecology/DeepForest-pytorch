@@ -21,6 +21,7 @@ from torch.utils.data import Dataset
 from deepforest import transforms as T
 from deepforest import utilities
 
+
 def get_transform(augment):
     transforms = []
     transforms.append(T.ToTensor())
@@ -56,6 +57,7 @@ class TreeDataset(Dataset):
         """Read class file in case of multi-class training.
         If no file has been created, DeepForest assume there is 1 class,
         Tree
+        
         """        
         self.labels = {}
         try:
