@@ -57,6 +57,7 @@ class TreeDataset(Dataset):
         If no file has been created, DeepForest assume there is 1 class,
         Tree
         """        
+        self.labels = {}
         try:
             with open(self.csvfile, 'r') as file:
                 self.classes = _read_classes(csv.reader(file, delimiter=','))
