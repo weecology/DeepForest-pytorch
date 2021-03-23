@@ -63,7 +63,8 @@ def use_release(save_dir=os.path.join(_ROOT, "data/"), prebuilt_model="NEON"):
         urllib.request.urlopen(
             urllib.request.Request(
                 'https://api.github.com/repos/Weecology/DeepForest-pytorch/releases/latest',
-                headers={'Accept': 'application/vnd.github.v3+json'},
+                headers={'Accept': 'application/vnd.github.v3+json',
+                         'User-Agent': 'Mozilla/5.0'},
             )).read())
     asset = _json['assets'][0]
     url = asset['browser_download_url']
