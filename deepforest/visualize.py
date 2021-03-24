@@ -52,8 +52,8 @@ def plot_predictions(image, df):
     """channel order is channels first for pytorch"""
     
     #Create a numeric index for coloring
-    df['numeric'] = df['label'].apply(lambda col:pd.Categorical(col).codes[0])
-    
+    df['numeric'] = df['label'].astype('category').cat.codes
+
     fig, ax = plt.subplots()
     ax.imshow(image)
     for index, row in df.iterrows():
