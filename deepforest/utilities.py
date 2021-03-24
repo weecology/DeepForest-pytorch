@@ -221,6 +221,8 @@ def shapefile_to_annotations(shapefile, rgb, savedir="."):
     # ensure no zero area polygons due to rounding to pixel size
     result = result[~(result.xmin == result.xmax)]
     result = result[~(result.ymin == result.ymax)]
+    #save the dataframe to csv file at specific location
+    result.to_csv(os.path.join(savedir,'annotations.csv'))
 
     return result
 
