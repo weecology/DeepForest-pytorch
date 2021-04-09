@@ -34,6 +34,7 @@ def predict_image(model, image, return_plot, device, iou_threshold=0.1):
 
     # This function on takes in a single image.
     df = visualize.format_boxes(prediction[0])
+    df = across_class_nms(df, iou_threshold=iou_threshold)
 
     if return_plot:
         # Matplotlib likes no batch dim and channels first
@@ -44,7 +45,7 @@ def predict_image(model, image, return_plot, device, iou_threshold=0.1):
         return df
 
 
-def predict_file(model, csv_file, root_dir, savedir, device):
+def predict_file(model, csv_file, root_dir, savedir, device, iou_threshold=0.1):
     """Create a dataset and predict entire annotation file
 
     Csv file format is .csv file with the columns "image_path", "xmin","ymin","xmax","ymax" for the image name and bounding box position.
@@ -75,17 +76,24 @@ def predict_file(model, csv_file, root_dir, savedir, device):
             image = image.to(device)
 
         prediction = model(image)
-
+        
         prediction = visualize.format_boxes(prediction[0])
+        prediction = across_class_nms(prediction, iou_threshold = iou_threshold)
+        
         prediction["image_path"] = path
         prediction_list.append(prediction)
 
         if savedir:
+            #if on GPU, bring back to cpu for plotting
+            # Just predict the images, even though we have the annotations
+            if not device.type == "cpu":
+                image = image.to("cpu")
+                
             image = image.squeeze(0).permute(1, 2, 0)
             plot, ax = visualize.plot_predictions(image, prediction)
             annotations = input_csv[input_csv.image_path == path]
             plot = visualize.add_annotations(plot, ax, annotations)
-            plot.savefig("{}/{}.png".format(savedir, os.path.splitext(path)[0]))
+            plot.savefig("{}/{}.png".format(savedir, os.path.splitext(path)[0]),dpi=300)
 
     df = pd.concat(prediction_list, ignore_index=True)
 
@@ -109,19 +117,20 @@ def predict_tile(model,
 
     Args:
         model: pytorch model
+        device: pytorch device of 'cuda' or 'cpu' for gpu prediction. Set internally.
+        numeric_to_label_dict: dictionary in which keys are numeric integers and values are character labels
         raster_path: Path to image on disk
         image (array): Numpy image array in BGR channel order
             following openCV convention
         patch_size: patch size default400,
         patch_overlap: patch overlap default 0.15,
         iou_threshold: Minimum iou overlap among predictions between
-            windows to be suppressed. Defaults to 0.5.
+            windows to be suppressed. Defaults to 0.14.
             Lower values suppress more boxes at edges.
         return_plot: Should the image be returned with the predictions drawn?
         use_soft_nms: whether to perform Gaussian Soft NMS or not, if false, default perform NMS.
         sigma: variance of Gaussian function used in Gaussian Soft NMS
         thresh: the score thresh used to filter bboxes after soft-nms performed
-        device: pytorch device of 'cuda' or 'cpu' for gpu prediction. Set internally.
 
     Returns:
         boxes (array): if return_plot, an image.
@@ -170,7 +179,7 @@ def predict_tile(model,
         # move prediciton to tensor
         boxes = torch.tensor(predicted_boxes[["xmin", "ymin", "xmax", "ymax"]].values,
                              dtype=torch.float32)
-        scores = torch.tensor(predicted_boxes.scores.values, dtype=torch.float32)
+        scores = torch.tensor(predicted_boxes.score.values, dtype=torch.float32)
         labels = predicted_boxes.label.values
 
         if not use_soft_nms:
@@ -200,7 +209,7 @@ def predict_tile(model,
             image_detections, columns=["xmin", "ymin", "xmax", "ymax", "label", "score"])
 
         print(f"{mosaic_df.shape[0]} predictions kept after non-max suppression")
-
+        
     if return_plot:
         # Draw predictions
         plot, _ = visualize.plot_predictions(image, mosaic_df)
@@ -273,3 +282,30 @@ def soft_nms(boxes, scores, sigma=0.5, thresh=0.001):
     idxs_keep = boxes[:, 4][scores > thresh].int()
 
     return idxs_keep
+
+def across_class_nms(predicted_boxes, iou_threshold=0.15):
+    """perform non-max suppression for a dataframe of results (see visualize.format_boxes) to remove boxes that overlap by iou_thresholdold of IoU"""
+    
+    # move prediciton to tensor
+    boxes = torch.tensor(predicted_boxes[["xmin", "ymin", "xmax", "ymax"]].values,
+                         dtype=torch.float32)
+    scores = torch.tensor(predicted_boxes.score.values, dtype=torch.float32)
+    labels = predicted_boxes.label.values
+
+    bbox_left_idx = nms(boxes=boxes, scores=scores, iou_threshold=iou_threshold)
+    bbox_left_idx = bbox_left_idx.numpy()
+    new_boxes, new_labels, new_scores = boxes[bbox_left_idx].type(
+        torch.int), labels[bbox_left_idx], scores[bbox_left_idx]
+
+    # Recreate box dataframe
+    image_detections = np.concatenate([
+        new_boxes,
+        np.expand_dims(new_labels, axis=1),
+        np.expand_dims(new_scores, axis=1)
+    ],
+                                      axis=1)
+
+    new_df = pd.DataFrame(
+        image_detections, columns=["xmin", "ymin", "xmax", "ymax", "label", "score"])
+    
+    return new_df

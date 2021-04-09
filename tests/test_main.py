@@ -10,12 +10,28 @@ import torch
 from deepforest import main
 from deepforest import get_data
 from deepforest import model
+from deepforest import dataset
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import Callback
 
 #Import release model from global script to avoid thrasing github during testing. Just download once.
 from .conftest import download_release
+
+@pytest.fixture()
+def two_class_m():
+    m = main.deepforest(num_classes=2,label_dict={"Alive":0,"Dead":1})
+    m.config["train"]["csv_file"] = get_data("testfile_multi.csv") 
+    m.config["train"]["root_dir"] = os.path.dirname(get_data("testfile_multi.csv"))
+    m.config["train"]["fast_dev_run"] = True
+    m.config["batch_size"] = 2
+        
+    m.config["validation"]["csv_file"] = get_data("testfile_multi.csv") 
+    m.config["validation"]["root_dir"] = os.path.dirname(get_data("testfile_multi.csv"))
+
+    m.create_trainer()
+    
+    return m
 
 @pytest.fixture()
 def m(download_release):
@@ -36,9 +52,12 @@ def m(download_release):
 def test_main():
     from deepforest import main
 
-def test_train(m):
+def test_train_single(m):
     m.trainer.fit(m)
 
+def test_train_multi(two_class_m):
+    two_class_m.trainer.fit(two_class_m)
+    
 def test_train_no_validation(m):
     m.config["validation"]["csv_file"] = None
     m.config["validation"]["root_dir"] = None  
@@ -55,7 +74,7 @@ def test_predict_image_fromfile(m):
     prediction = m.predict_image(path = path)
     
     assert isinstance(prediction, pd.DataFrame)
-    assert set(prediction.columns) == {"xmin","ymin","xmax","ymax","label","scores"}
+    assert set(prediction.columns) == {"xmin","ymin","xmax","ymax","label","score"}
 
 def test_predict_image_fromarray(m):
     image = get_data(path="2019_YELL_2_528000_4978000_image_crop2.png")
@@ -63,7 +82,7 @@ def test_predict_image_fromarray(m):
     prediction = m.predict_image(image = image)
     
     assert isinstance(prediction, pd.DataFrame)
-    assert set(prediction.columns) == {"xmin","ymin","xmax","ymax","label","scores"}
+    assert set(prediction.columns) == {"xmin","ymin","xmax","ymax","label","score"}
 
 def test_predict_return_plot(m):
     image = get_data(path="2019_YELL_2_528000_4978000_image_crop2.png")
@@ -74,7 +93,7 @@ def test_predict_return_plot(m):
 def test_predict_file(m, tmpdir):
     csv_file = get_data("example.csv")
     df = m.predict_file(csv_file, root_dir = os.path.dirname(csv_file), savedir=tmpdir)
-    assert set(df.columns) == {"xmin","ymin","xmax","ymax","label","scores","image_path"}
+    assert set(df.columns) == {"xmin","ymin","xmax","ymax","label","score","image_path","numeric"}
     
     printed_plots = glob.glob("{}/*.png".format(tmpdir))
     assert len(printed_plots) == 1
@@ -122,8 +141,8 @@ def test_evaluate(m):
     results = m.evaluate(csv_file, root_dir, iou_threshold = 0.4, show_plot=True)
     
     #Does this make reasonable predictions, we know the model works.
-    assert np.round(results["precision"],2) > 0.5
-    assert np.round(results["recall"],2) > 0.5
+    assert np.round(results["box_precision"],2) > 0.5
+    assert np.round(results["box_recall"],2) > 0.5
     
 def test_train_callbacks(m):
     csv_file = get_data("example.csv") 
@@ -147,10 +166,9 @@ def test_train_callbacks(m):
     trainer.fit(m, train_ds)
     
 def test_save_and_reload(m, tmpdir):
-    img_path = get_data(path="2019_YELL_2_528000_4978000_image_crop2.png")
-    m.trainer.fit(m)
-    
+    img_path = get_data(path="2019_YELL_2_528000_4978000_image_crop2.png")    
     #save the prediction dataframe after training and compare with prediction after reload checkpoint 
+    m.trainer.fit(m)    
     pred_after_train = m.predict_image(path = img_path)
     m.save_model("{}/checkpoint.pl".format(tmpdir))
     

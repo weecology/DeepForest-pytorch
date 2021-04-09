@@ -35,46 +35,13 @@ jobs:
       source activate DeepForest_pytorch
       pip install pytest pytest-azurepipelines yapf
       pytest
-      yapf -d --recursive deepforest/ --style=.style.yapf 2>&1
+      #yapf -d --recursive deepforest/ --style=.style.yapf 2>&1
     displayName: 'Pytests and sytle tests'
     
   - bash: |
       source activate DeepForest_pytorch
-      python3 setup.py sdist
+      python3 setup.py sdist bdist_wheel
       
   - task: PublishBuildArtifacts@1
     inputs: {pathtoPublish: 'dist'}
   displayName: 'Source distribution'
-    
-- job: linux
-  pool: {vmImage: 'Ubuntu-16.04'}
-  steps:
-    - task: UsePythonVersion@0
-    - bash: |
-        python -m pip install --upgrade pip
-        pip install cibuildwheel==1.1.0
-        cibuildwheel --output-dir wheelhouse .
-    - task: PublishBuildArtifacts@1
-      inputs: {pathtoPublish: 'wheelhouse'}
-- job: macos
-  pool: {vmImage: 'macOS-10.14'}
-  steps:
-    - task: UsePythonVersion@0
-    - bash: |
-        python -m pip install --upgrade pip
-        pip install cibuildwheel==1.1.0
-        cibuildwheel --output-dir wheelhouse .
-    - task: PublishBuildArtifacts@1
-      inputs: {pathtoPublish: 'wheelhouse'}
-- job: windows
-  pool: {vmImage: 'vs2017-win2016'}
-  steps:
-    - task: UsePythonVersion@0
-    - script: choco install vcpython27 -f -y
-      displayName: Install Visual C++ for Python 2.7
-    - bash: |
-        python -m pip install --upgrade pip
-        pip install cibuildwheel==1.1.0
-        cibuildwheel --output-dir wheelhouse .
-    - task: PublishBuildArtifacts@1
-      inputs: {pathtoPublish: 'wheelhouse'}

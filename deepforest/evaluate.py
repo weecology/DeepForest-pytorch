@@ -50,10 +50,15 @@ def evaluate_image(predictions, ground_df, show_plot, root_dir, savedir):
             visualize.plot_prediction_dataframe(df=predictions,
                                                 ground_truth=ground_df,
                                                 root_dir=root_dir,
-                                                savedir=savedir)
+                                                savedir=savedir,
+                                                show=True)
 
     # match
     result = IoU.compute_IoU(ground_df, predictions)
+    
+    #add the label classes
+    result["predicted_label"] = result.prediction_id.apply(lambda x: predictions.label.loc[x] if pd.notnull(x) else x)
+    result["true_label"] = result.truth_id.apply(lambda x: ground_df.label.loc[x])
 
     return result
 
@@ -68,14 +73,15 @@ def evaluate(predictions,
     submission can be submitted as a .shp, existing pandas dataframe or .csv path
 
     Args:
-        predictions: a pandas dataframe, if supplied a root dir is needed to give the relative path of files in df.name
+        predictions: a pandas dataframe, if supplied a root dir is needed to give the relative path of files in df.name. The labels in ground truth and predictions must match. If one is numeric, the other must be numeric.
         ground_df: a pandas dataframe, if supplied a root dir is needed to give the relative path of files in df.name
         root_dir: location of files in the dataframe 'name' column.
         show_plot: Whether to show boxes as they are plotted
     Returns:
         results: a dataframe of match bounding boxes
-        recall: proportion of true positives
-        precision: proportion of predictions that are true positive
+        box_recall: proportion of true positives of box position, regardless of class
+        box_precision: proportion of predictions that are true positive, regardless of class
+        class_recall: a pandas dataframe of class level recall and precision with class sizes
     """
 
     check_file(ground_df)
@@ -83,10 +89,13 @@ def evaluate(predictions,
 
     # Run evaluation on all plots
     results = []
-    recalls = []
-    precisions = []
+    box_recalls = []
+    box_precisions = []
     for image_path, group in predictions.groupby("image_path"):
-        plot_ground_truth = ground_df[ground_df["image_path"] == image_path].reset_index()
+        
+        #clean indices
+        plot_ground_truth = ground_df[ground_df["image_path"] == image_path].reset_index(drop=True)
+        group = group.reset_index(drop=True)
         result = evaluate_image(predictions=group,
                                 ground_df=plot_ground_truth,
                                 show_plot=show_plot,
@@ -98,17 +107,35 @@ def evaluate(predictions,
         recall = true_positive / result.shape[0]
         precision = true_positive / group.shape[0]
 
-        recalls.append(recall)
-        precisions.append(precision)
+        box_recalls.append(recall)
+        box_precisions.append(precision)
         results.append(result)
 
     if len(results) == 0:
         print("No predictions made, setting precision and recall to 0")
-        recall = 0
-        precision = 0
+        box_recall = 0
+        box_precision = 0
+        class_recall = pd.DataFrame()
+        results = pd.DataFrame()
     else:
         results = pd.concat(results)
-        precision = np.mean(precisions)
-        recall = np.mean(recalls)
-
-    return {"results": results, "precision": precision, "recall": recall}
+        box_precision = np.mean(box_precisions)
+        box_recall = np.mean(box_recalls)
+    
+        #Per class recall and precision
+        class_recall_dict = {}
+        class_precision_dict = {}
+        class_size = {}
+        
+        for name, group in results.groupby("true_label"):
+            class_recall_dict[name] = sum(group.true_label == group.predicted_label)/group.shape[0]
+            number_of_predictions = predictions[predictions.label==name].shape[0]
+            if number_of_predictions == 0:
+                class_precision_dict[name] = 0
+            else:
+                class_precision_dict[name] = sum(group.true_label == group.predicted_label)/number_of_predictions
+            class_size[name] = group.shape[0]
+        
+        class_recall = pd.DataFrame({"label":class_recall_dict.keys(),"recall":pd.Series(class_recall_dict), "precision":pd.Series(class_precision_dict), "size":pd.Series(class_size)}).reset_index(drop=True)
+            
+    return {"results": results, "box_precision": box_precision, "box_recall": box_recall, "class_recall":class_recall}

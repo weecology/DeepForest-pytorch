@@ -6,7 +6,7 @@ import torch
 
 import pytorch_lightning as pl
 from torch import optim
-import tempfile
+import matplotlib
 
 from deepforest import utilities
 from deepforest import dataset
@@ -14,14 +14,13 @@ from deepforest import get_data
 from deepforest import model
 from deepforest import predict
 from deepforest import evaluate as evaluate_iou
-from deepforest import visualize
 
 
 class deepforest(pl.LightningModule):
     """Class for training and predicting tree crowns in RGB images
     """
 
-    def __init__(self, num_classes=1):
+    def __init__(self, num_classes=1, label_dict = {"Tree":0}):
         """
         Args:
             num_classes (int): number of classes in the model
@@ -29,7 +28,7 @@ class deepforest(pl.LightningModule):
             self: a deepforest pytorch ligthning module
         """
         super().__init__()
-
+        
         # Read config file - if a config file exists in local dir use it,
         # if not use installed.
         if os.path.exists("deepforest_config.yml"):
@@ -50,6 +49,13 @@ class deepforest(pl.LightningModule):
 
         self.num_classes = num_classes
         self.create_model()
+        
+        #Label encoder and decoder
+        if not len(label_dict) == num_classes:
+            raise ValueError("label_dict {} does not match requested number of classes {}, please supply a label_dict argument {'label1':0, 'label2':1, 'label3':2 ... etc} for each label in the dataset".format(label_dict, num_classes))
+        
+        self.label_dict = label_dict
+        self.numeric_to_label_dict = {v: k for k, v in label_dict.items()}
 
     def use_release(self):
         """Use the latest DeepForest model release from github and load model.
@@ -115,7 +121,8 @@ class deepforest(pl.LightningModule):
 
         ds = dataset.TreeDataset(csv_file=csv_file,
                                  root_dir=root_dir,
-                                 transforms=dataset.get_transform(augment=augment))
+                                 transforms=dataset.get_transform(augment=augment),
+                                 label_dict=self.label_dict)
 
         data_loader = torch.utils.data.DataLoader(
             ds,
@@ -188,8 +195,14 @@ class deepforest(pl.LightningModule):
         result = predict.predict_image(model=self.model,
                                        image=image,
                                        return_plot=return_plot,
-                                       device=self.device)
-
+                                       device=self.device,
+                                       iou_threshold=self.config["nms_thresh"])
+        
+        #Set labels to character from numeric if returning boxes df
+        if not return_plot:
+            if not result is None:
+                result["label"] = result.label.apply(lambda x: self.numeric_to_label_dict[x])
+        
         return result
 
     def predict_file(self, csv_file, root_dir, savedir=None):
@@ -210,8 +223,12 @@ class deepforest(pl.LightningModule):
                                       csv_file=csv_file,
                                       root_dir=root_dir,
                                       savedir=savedir,
-                                      device=self.device)
+                                      device=self.device,
+                                      iou_threshold=self.config["nms_thresh"])
 
+        #Set labels to character from numeric
+        result["label"] = result.label.apply(lambda x: self.numeric_to_label_dict[x])
+            
         return result
 
     def predict_tile(self,
@@ -261,6 +278,15 @@ class deepforest(pl.LightningModule):
                                       thresh=thresh,
                                       device=self.device)
 
+        #edge case, if no boxes predictioned return None
+        if result is None:
+            print("No predictions made, returning None")
+            return None
+        
+        #Set labels to character from numeric if returning boxes df
+        if not return_plot:
+            result["label"] = result.label.apply(lambda x: self.numeric_to_label_dict[x])
+            
         return result
 
     def training_step(self, batch, batch_idx):
@@ -341,7 +367,10 @@ class deepforest(pl.LightningModule):
                                            csv_file=csv_file,
                                            root_dir=root_dir,
                                            savedir=savedir,
-                                           device=self.device)
+                                           device=self.device,
+                                           iou_threshold=self.config["nms_thresh"])
+        
+        predictions["label"] = predictions.label.apply(lambda x: self.numeric_to_label_dict[x])
         ground_df = pd.read_csv(csv_file)
 
         # if no arg for iou_threshold, set as config

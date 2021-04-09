@@ -157,6 +157,9 @@ To begin training, call trainer.fit on the model object directly on itself. Whil
 model.trainer.fit(model)
 ```
 
+[For more, see Google colab demo on model training](https://colab.research.google.com/drive/1AJUcw5dEpXeDPHd0sotAz5lpWedFYSIL#offline=true&sandboxMode=true)
+
+
 ## Evaluation
 
 Independent analysis of whether a model can generalize from training data to new areas is critical for creating a robust workflow. 
@@ -187,16 +190,18 @@ This dataframe contains a numeric id for each predicted crown in each image, the
 The recall is the proportion of ground truth which have a true positive match with a prediction based on the intersection-over-union threshold, this threshold is default 0.4 and can be chaned in model.evaluate(iou_threshold=<>)
 
 ```
-results["recall"]
+results["box_recall"]
 0.738
 ```
 
-The precision is the proportion of predicted boxes which overlap a ground truth box.
+The regression box precision is the proportion of predicted boxes which overlap a ground truth box.
 
 ```
-results["precision"]
+results["box_precision"]
 0.428
 ```
+
+In a multi-class problem, there 
 
 ## Loading saved models for prediction
 
@@ -223,3 +228,17 @@ assert not pred_after_train.empty
 assert not pred_after_reload.empty
 pd.testing.assert_frame_equal(pred_after_train,pred_after_reload)
 ```
+## Multi-class models
+
+While the primary design of this package is for "Tree" detection with a single class. Multi-class labels are allowed for those looking to extend core functionality.
+When creating a deepforest model object, pass the designed number of classes and a label dictionary that maps each numeric class to a character label. See FAQ for known challenges of multi-class models on reloading.
+
+```
+m = main.deepforest(num_classes=2,label_dict={"Alive":0,"Dead":1})
+```
+
+## Issues
+
+We welcome feedback on both the python package as well as the algorithm performance. Please submit detailed issues to the github repo.
+
+[https://github.com/weecology/DeepForest-pytorch/issues](https://github.com/weecology/DeepForest-pytorch/issues)

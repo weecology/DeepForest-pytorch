@@ -4,7 +4,6 @@ import os
 import sys
 from typing import Any
 
-import deepforest
 import recommonmark
 from recommonmark.parser import CommonMarkParser
 from recommonmark.parser import CommonMarkParser
@@ -48,8 +47,7 @@ master_doc = 'index'
 project = u'DeepForest'
 copyright = u"2019, Ben Weinstein"
 author = u"Ben Weinstein"
-version = deepforest.__version__
-release = deepforest.__version__
+version = u"0.1.29"
 language = None
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '**.ipynb_checkpoints']
 pygments_style = 'sphinx'
@@ -95,7 +93,6 @@ texinfo_documents = [
      'deepforest', 'One line description of project.', 'Miscellaneous'),
 ]
 
-autodoc_mock_imports = ["tensorflow", "keras", "deepforest.keras_retinanet"]
 source_suffix = {
     '.rst': 'restructuredtext',
     '.md': 'markdown',

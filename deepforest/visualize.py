@@ -7,7 +7,6 @@ import matplotlib.patches as patches
 from skimage import io
 import numpy as np
 
-
 def format_boxes(prediction, scores=True):
     """Format a retinanet prediction into a pandas dataframe for a single image
        Args:
@@ -22,7 +21,7 @@ def format_boxes(prediction, scores=True):
     df["label"] = prediction["labels"].cpu().detach().numpy()
 
     if scores:
-        df["scores"] = prediction["scores"].cpu().detach().numpy()
+        df["score"] = prediction["scores"].cpu().detach().numpy()
 
     return df
 
@@ -33,40 +32,70 @@ def plot_prediction_and_targets(image, predictions, targets, image_name, savedir
     plot, ax = plot_predictions(image, prediction_df)
     target_df = format_boxes(targets, scores=False)
     plot = add_annotations(plot, ax, target_df)
-    plot.savefig("{}/{}.png".format(savedir, image_name))
+    plot.savefig("{}/{}.png".format(savedir, image_name), dpi=300)
     return "{}/{}.png".format(savedir, image_name)
 
 
-def plot_prediction_dataframe(df, ground_truth, root_dir, savedir=None):
-    """For each row in dataframe, call plot predictions"""
+def plot_prediction_dataframe(df, root_dir, ground_truth=None, savedir=None, show=False):
+    """For each row in dataframe, call plot predictions. For multi-class labels, boxes will be colored by labels. Ground truth boxes will all be same color, regardless of class.
+    Args:
+        df: a pandas dataframe with image_path, xmin, xmax, ymin, ymax and label columns
+        root_dir: relative dir to look for image names from df.image_path
+        ground_truth: an optional pandas dataframe in same format as df holding ground_truth boxes
+        savedir: save the plot to an optional directory path.
+        show (logical): Render the plot in the matplotlib GUI
+    Returns:
+        None: side-effect plots are saved or generated and viewed
+        """
     for name, group in df.groupby("image_path"):
         image = io.imread("{}/{}".format(root_dir, name))
-        plot, ax = plot_predictions(image, group)
-        annotations = ground_truth[ground_truth.image_path == name]
-        plot = add_annotations(plot, ax, annotations)
+        plot, ax = plot_predictions(image, group, show=show)
+        
+        if ground_truth is not None:
+            annotations = ground_truth[ground_truth.image_path == name]
+            plot = add_annotations(plot, ax, annotations)
+            
         if savedir:
             plot.savefig("{}/{}.png".format(savedir, os.path.splitext(name)[0]))
+    
 
+def plot_predictions(image, df, show=False):
+    """channel order is channels first for pytorch
+    By default this function does not show, but only plots an axis
+    """
+    if not show:
+        original_backend = matplotlib.get_backend()
+        matplotlib.use("Agg")
+        
+    #Create a numeric index for coloring
+    df['numeric'] = df['label'].astype('category').cat.codes
 
-def plot_predictions(image, df):
-    """channel order is channels first for pytorch"""
-    fig, ax = plt.subplots()
+    #What size does the figure need to be in inches to fit the image?
+    dpi=300
+    height, width, nbands = image.shape
+    figsize = width / float(dpi), height / float(dpi)
+
+    fig, ax = plt.subplots(figsize=figsize)
     ax.imshow(image)
     for index, row in df.iterrows():
         xmin = row["xmin"]
         ymin = row["ymin"]
         width = row["xmax"] - xmin
         height = row["ymax"] - ymin
-        color = label_to_color(row["label"])
+        color = label_to_color(row["numeric"])
         rect = create_box(xmin=xmin, ymin=ymin, height=height, width=width, color=color)
         ax.add_patch(rect)
     # no axis show up
     plt.axis('off')
-
+    
+    #reload matplotlib to get use back their favorite backend.
+    if not show:
+        matplotlib.use(original_backend)
+    
     return fig, ax
 
 
-def create_box(xmin, ymin, height, width, color="cyan", linewidth=1):
+def create_box(xmin, ymin, height, width, color="cyan", linewidth=0.5):
     rect = patches.Rectangle((xmin, ymin),
                              height,
                              width,
