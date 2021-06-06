@@ -1,3 +1,7 @@
+# This repo has been moved to https://github.com/Weecology/DeepForest
+
+The deepforest-pytorch branch has been moved to the 'main' branch of https://github.com/Weecology/DeepForest. The original DeepForest repo was based on tensorflow and since been deprecated. Since this project was newer and had fewer users, it made sense to merge the two repos. Please use the DeepForest repo in all future cases.
+
 # DeepForest-pytorch
 
 [![Conda package](https://github.com/weecology/DeepForest-pytorch/actions/workflows/Conda-app.yml/badge.svg)](https://github.com/weecology/DeepForest-pytorch/actions/workflows/Conda-app.yml)
